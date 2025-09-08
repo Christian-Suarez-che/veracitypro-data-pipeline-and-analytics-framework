@@ -5,50 +5,78 @@ Senior capstone project building a cloud-based data pipeline and analytics frame
 **Status:** Week 1 – Repo & CI.  
 **Owner:** Christian Suarez
 
----
-config:
-  layout: fixed
----
+## Architecture
+
+```mermaid
 flowchart LR
- subgraph DevOps["Git, GitHub & CI/CD"]
+  subgraph DevOps["Git, GitHub & CI/CD"]
     direction TB
-        Git["Git Repository"]
-        GitHub["GitHub"]
-        CICD["CI/CD & DevOps Pipeline"]
+    Git["Git Repository"]
+    GitHub["GitHub"]
+    CICD["CI/CD & DevOps Pipeline"]
   end
- subgraph Orchestration["Orchestration"]
-        Airflow["Apache Airflow"]
-        Slack["Slack Notifications"]
+
+  subgraph Orchestration["Orchestration"]
+    Airflow["Apache Airflow"]
+    Slack["Slack Notifications"]
   end
- subgraph Collection["Collection"]
-        API["API (Amazon Scraper)"]
-        PG["PostgreSQL"]
+
+  subgraph Collection["Collection"]
+    API["API (Amazon Scraper)"]
+    PG["PostgreSQL"]
   end
- subgraph Ingestion["Ingestion"]
-        Airbyte["Airbyte (Docker)"]
+
+  subgraph Ingestion["Ingestion"]
+    Airbyte["Airbyte (Docker)"]
   end
- subgraph DataLake["Data Lake"]
-        S3["AMZ S3"]
+
+  subgraph DataLake["Data Lake"]
+    S3["AMZ S3"]
   end
- subgraph Cleaning["Cleaning"]
-        DBT["dbt (Transformations)"]
+
+  subgraph Cleaning["Cleaning"]
+    DBT["dbt (Transformations)"]
   end
- subgraph Warehouse["Data Warehouse"]
-        Snowflake["Snowflake"]
+
+  subgraph Warehouse["Data Warehouse"]
+    Snowflake["Snowflake"]
   end
- subgraph Analytics["Analytics/Dashboards"]
-        PowerBI["Power BI"]
-        Tableau["Tableau"]
-        DS["Data Science (Python, etc)"]
+
+  subgraph Analytics["Analytics/Dashboards"]
+    PowerBI["Power BI"]
+    Tableau["Tableau"]
+    DS["Data Science (Python, etc.)"]
   end
-    API -- Raw Data --> Airbyte
-    PG -- Raw Data --> Airbyte
-    Airbyte -- Ingest --> S3
-    S3 -- Source Data --> DBT
-    DBT -- Transformed Data --> Snowflake
-    Snowflake -- Warehouse Data --> PowerBI & Tableau & DS
-    Airflow -. Orchestrates .-> Airbyte & S3 & DBT & Snowflake & PowerBI & Tableau & DS
-    Airflow -. Sends alerts .-> Slack
-    Git --> GitHub
-    GitHub --> CICD
-    CICD -. Deploy/Integrate .-> Airbyte & DBT & Snowflake & Airflow & Analytics & Cleaning & DataLake
+
+  %% Data flows
+  API -->|Raw Data| Airbyte
+  PG -->|Raw Data| Airbyte
+  Airbyte -->|Ingest| S3
+  S3 -->|Source Data| DBT
+  DBT -->|Transformed Data| Snowflake
+  Snowflake -->|Warehouse Data| PowerBI
+  Snowflake -->|Warehouse Data| Tableau
+  Snowflake -->|Warehouse Data| DS
+
+  %% Orchestration
+  Airflow -. Orchestrates .-> Airbyte
+  Airflow -. Orchestrates .-> S3
+  Airflow -. Orchestrates .-> DBT
+  Airflow -. Orchestrates .-> Snowflake
+  Airflow -. Orchestrates .-> PowerBI
+  Airflow -. Orchestrates .-> Tableau
+  Airflow -. Orchestrates .-> DS
+  Airflow -. Sends alerts .-> Slack
+
+  %% DevOps pipeline
+  Git --> GitHub
+  GitHub --> CICD
+  CICD -. Deploy/Integrate .-> Airbyte
+  CICD -. Deploy/Integrate .-> DBT
+  CICD -. Deploy/Integrate .-> Snowflake
+  CICD -. Deploy/Integrate .-> Airflow
+  CICD -. Deploy/Integrate .-> PowerBI
+  CICD -. Deploy/Integrate .-> Tableau
+  CICD -. Deploy/Integrate .-> DS
+  CICD -. Deploy/Integrate .-> S3
+```
