@@ -1,0 +1,62 @@
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+.mypy_cache/
+.pytest_cache/
+.venv/
+venv/
+
+# ---------- Jupyter ----------
+.ipynb_checkpoints/
+
+# ---------- VS Code ----------
+.vscode/*
+!.vscode/extensions.json
+
+# ---------- Lint/Test/Coverage ----------
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ---------- dbt ----------
+dbt/target/
+dbt/logs/
+profiles.yml
+
+# ---------- Airflow (local only) ----------
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/logs/
+airflow/.env
+
+# ---------- Secrets / Keys ----------
+**/credentials/**
+**/secrets/**
+*.pem
+*.p8
+*.key
+*.json.key
+*.pfx
+.env
+*.env
+.env.*
+
+# ---------- Data ----------
+data/raw/
+data/tmp/
+*.parquet
+*.csv
+*.tsv
+*.gz
+!data/sample/**
