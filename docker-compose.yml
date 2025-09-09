@@ -1,0 +1,36 @@
+services:
+  pipeline:
+    build:
+      context: .
+      dockerfile: docker/pipeline.Dockerfile
+    image: veracitypro/pipeline:dev
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    working_dir: /app
+    command: bash -lc "pytest -q"
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: docker/pipeline.Dockerfile
+    image: veracitypro/pipeline:dev
+    volumes:
+      - .:/app
+    ports:
+      - "8888:8888"
+    working_dir: /app
+    command: bash -lc "jupyter lab --ip=0.0.0.0 --no-browser --NotebookApp.token='' --NotebookApp.password=''"
+
+  dbt:
+    build:
+      context: .
+      dockerfile: docker/dbt.Dockerfile
+    image: veracitypro/dbt:dev
+    volumes:
+      - .:/app
+    environment:
+      DBT_PROFILES_DIR: /app/dbt
+    working_dir: /app/dbt/veracitypro_dbt
+    command: bash -lc "dbt compile"
