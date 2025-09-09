@@ -1,4 +1,10 @@
+import importlib
+
 def test_imports():
-    import extractor.vp_keepa.client
-    import extractor.vp_scraper.clients.scraperapi_client
-    import extractor.spapi.orders_daily
+    modules = [
+        "extractor.vp_keepa.client",
+        "extractor.vp_scraper.clients.scraperapi_client",
+        "extractor.spapi.orders_daily",
+    ]
+    for mod in modules:
+        assert importlib.import_module(mod)

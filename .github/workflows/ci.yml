@@ -24,7 +24,7 @@ jobs:
   dbt-compile:
     runs-on: ubuntu-latest
     env:
-      DBT_PROFILES_DIR: dbt
+      DBT_PROFILES_DIR: ${{ github.workspace }}/dbt   # absolute path fixes 'does not exist'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -67,5 +67,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest fastjsonschema requests
+      - name: Add project to PYTHONPATH
+        run: echo "PYTHONPATH=${PYTHONPATH}:${GITHUB_WORKSPACE}" >> $GITHUB_ENV
       - name: Unit tests
         run: pytest -q
