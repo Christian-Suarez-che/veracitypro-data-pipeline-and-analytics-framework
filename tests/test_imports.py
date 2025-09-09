@@ -1,4 +1,5 @@
 import importlib
+
 def test_imports():
     for mod in [
         "extractor.vp_keepa.client",
