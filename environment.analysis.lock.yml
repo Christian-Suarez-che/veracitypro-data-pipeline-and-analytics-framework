@@ -1,0 +1,29 @@
+name: vp-analyst
+channels:
+  - defaults
+dependencies:
+  - altair
+  - bokeh
+  - ipykernel
+  - ipywidgets
+  - jupyter
+  - jupyterlab
+  - lightgbm
+  - matplotlib
+  - numpy
+  - openpyxl
+  - pandas
+  - pip
+  - pyarrow
+  - python=3.11
+  - scikit-image
+  - scikit-learn
+  - scipy
+  - seaborn
+  - statsmodels
+  - xgboost
+  - beautifulsoup4
+  - lxml
+  - plotly
+  - requests
+prefix: D:\3-CHRISTIAN\Data_Science\Anaconda\envs\vp-analyst
