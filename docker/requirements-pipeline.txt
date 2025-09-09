@@ -1,0 +1,15 @@
+pandas
+numpy
+scipy
+pyarrow
+requests
+boto3
+snowflake-connector-python
+snowflake-sqlalchemy
+dbt-core
+dbt-snowflake
+fastjsonschema
+pytest
+ruff
+jupyter
+ipykernel
