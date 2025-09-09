@@ -1,0 +1,34 @@
+name: vp-analyst
+channels: [conda-forge, defaults]
+dependencies:
+  - python=3.11
+  # notebooks + viz
+  - ipykernel
+  - jupyter
+  - jupyterlab
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - pyarrow
+  - ipywidgets
+  - openpyxl
+  # DS / ML
+  - scikit-learn
+  - statsmodels
+  - scikit-image
+  - xgboost
+  - lightgbm
+  - altair
+  - bokeh
+  # web + parsing + plotting (installed via conda for speed on Windows)
+  - beautifulsoup4     # Beautiful Soup
+  - lxml               # fast HTML/XML parser used with BS4
+  - requests
+  - plotly
+  # keep pip for TF (best support from pip wheels on Windows)
+  - pip
+  - pip:
+      - tensorflow==2.17.*   # CPU build; compatible with Python 3.11
+      - ydata-profiling

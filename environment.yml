@@ -1,0 +1,31 @@
+name: vp
+channels: [conda-forge, defaults]
+dependencies:
+  - python=3.11
+  # dev + notebooks
+  - ipykernel
+  - jupyter
+  # core libs (conda = prebuilt wheels on Win)
+  - numpy
+  - pandas
+  - scipy
+  - pyarrow
+  - requests
+  - sqlalchemy
+  # cloud + warehouse
+  - boto3
+  - botocore
+  - dbt-core
+  - dbt-snowflake
+  - snowflake-connector-python
+  - snowflake-sqlalchemy
+  # optional, handy locally
+  - python-dotenv
+  - scikit-learn
+  - statsmodels
+  - pip
+  - pip:
+      - ruff                  # linter used in CI
+      - prophet               # pip is most reliable on Win
+      - apache-airflow-client # talk to Airflow’s REST API if needed
+      - fastjsonschema
