@@ -1,0 +1,24 @@
+name: vp
+channels:
+  - defaults
+dependencies:
+  - boto3
+  - botocore
+  - dbt-core
+  - dbt-snowflake
+  - ipykernel
+  - jupyter
+  - numpy
+  - pandas
+  - pip
+  - pyarrow
+  - python-dotenv
+  - python=3.11
+  - requests
+  - scikit-learn
+  - scipy
+  - snowflake-connector-python
+  - snowflake-sqlalchemy
+  - sqlalchemy
+  - statsmodels
+prefix: D:\3-CHRISTIAN\Data_Science\Anaconda\envs\vp
