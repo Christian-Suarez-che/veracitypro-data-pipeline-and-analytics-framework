@@ -60,3 +60,4 @@ data/tmp/
 *.tsv
 *.gz
 !data/sample/**
+!.env.example
