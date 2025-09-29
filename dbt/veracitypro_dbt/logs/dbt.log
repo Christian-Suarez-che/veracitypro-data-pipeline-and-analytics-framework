@@ -1,0 +1,9 @@
+Installing dbt project and profile setup
+Warning A dbt_project.yml already exists in this directory; skipping sample project creation.
+Info Created .vscode/extensions.json with dbt extension recommendation
+Info Setting up your profile...
+Info Creating new profile...
+Found dbt_cloud.yml configuration
+Found active project: veracitypro-data-pipeline-and-analytics-framework (ID: 70471823510525)
+Failed to fetch cloud config: Failed to fetch user credentials: error in response: status code 404 Not Found
+No cloud config found for this adapter/project
