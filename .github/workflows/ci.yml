@@ -2,38 +2,45 @@ name: CI
 
 on:
   push:
-    branches: ['**']        # run on any branch push (useful while stabilizing)
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
 
 jobs:
-  dbt-compile:
-    name: dbt deps + compile
+  lint:
+    name: lint
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: dbt/veracitypro_dbt       # where dbt_project.yml lives
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dbt (Snowflake)
+      - name: Install Ruff
         run: |
           python -m pip install --upgrade pip
-          # keep dbt-snowflake pinned to <1.11 so adapters match
-          pip install "dbt-core>=1.10,<1.11" "dbt-snowflake>=1.10,<1.11"
+          pip install "ruff==0.6.*"
+      - name: Ruff check
+        run: ruff check .
 
-      - name: Install dbt packages (dbt deps)
-        run: dbt deps
-
-      - name: Create temp profiles.yml (compile only)
+  dbt-compile:
+    name: dbt-compile
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt/veracitypro_dbt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dbt
         run: |
-          mkdir -p "${GITHUB_WORKSPACE}/.ci"
-          cat > "${GITHUB_WORKSPACE}/.ci/profiles.yml" << 'EOF'
+          python -m pip install --upgrade pip
+          pip install dbt-core dbt-snowflake
+      - name: Prepare dummy profile (absolute path)
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/.ci"
+          cat > "$GITHUB_WORKSPACE/.ci/profiles.yml" <<'EOF'
           veracitypro_dbt:
             target: ci
             outputs:
@@ -43,46 +50,44 @@ jobs:
                 user: dummy
                 password: dummy
                 role: DUMMY
-                database: DUMMY
-                warehouse: DUMMY
-                schema: CI
+                database: VP_DWH
+                warehouse: WH_INGEST_XS
+                schema: RAW
                 threads: 1
           EOF
-
+      - name: dbt deps
+        env:
+          DBT_PROFILES_DIR: ${{ github.workspace }}/.ci
+        run: dbt deps
       - name: dbt compile
         env:
           DBT_PROFILES_DIR: ${{ github.workspace }}/.ci
         run: dbt compile
 
-  lint:
-    name: Ruff (strict)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install Ruff
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
-      - name: Ruff check
-        run: ruff check --format=github .
-
   tests:
-    name: Unit tests
-    if: ${{ hashFiles('tests/**') != '' }}   # skip if you have no tests
+    name: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
           pip install pytest fastjsonschema requests
-      - name: Run tests
+      # TEMPORARY: make extractor/ a proper package for CI
+      - name: Create __init__.py in extractor tree (temporary)
+        run: |
+          python - <<'PY'
+          import pathlib
+          root = pathlib.Path('extractor')
+          if root.exists():
+              for d in [root, *root.rglob('*')]:
+                  if d.is_dir():
+                      (d / '__init__.py').touch()
+          PY
+      - name: Add repo to PYTHONPATH
+        run: echo "PYTHONPATH=${PYTHONPATH}:${GITHUB_WORKSPACE}" >> "$GITHUB_ENV"
+      - name: Unit tests
         run: pytest -q
