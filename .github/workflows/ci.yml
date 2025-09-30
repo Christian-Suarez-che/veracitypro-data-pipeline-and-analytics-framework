@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: [main, develop]
@@ -12,7 +13,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
       - name: Install Ruff
         run: |
           python -m pip install --upgrade pip
@@ -22,37 +24,49 @@ jobs:
 
   dbt-compile:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt/veracitypro_dbt   # where dbt_project.yml lives
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install dbt
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dbt (Snowflake adapter)
         run: |
           python -m pip install --upgrade pip
-          pip install dbt-core dbt-snowflake
-      - name: Prepare dummy profile (absolute path)
+          # Pin to the current major to avoid surprises
+          pip install "dbt-snowflake~=1.10"
+
+      - name: Install dbt packages (dbt deps)
+        run: dbt deps
+
+      - name: Create temporary profiles.yml (compile-only)
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/dbt"
-          cat > "$GITHUB_WORKSPACE/dbt/profiles.yml" <<'EOF'
-          veracitypro_dbt:
+          mkdir -p "$GITHUB_WORKSPACE/.ci"
+          cat > "$GITHUB_WORKSPACE/.ci/profiles.yml" <<'EOF'
+          config:
+            send_anonymous_usage_stats: false
+          user:
             target: ci
             outputs:
               ci:
                 type: snowflake
                 account: dummy
                 user: dummy
-                password: dummy
+                password: x
                 role: DUMMY
-                database: VP_DWH
-                warehouse: WH_INGEST_XS
-                schema: RAW
+                database: DUMMY
+                warehouse: DUMMY
+                schema: CI
                 threads: 1
           EOF
+
       - name: dbt compile
         env:
-          DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
-        working-directory: dbt/veracitypro_dbt
+          DBT_PROFILES_DIR: ${{ github.workspace }}/.ci
         run: dbt compile
 
   tests:
@@ -61,7 +75,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
+          cache: "pip"
       - name: Install test deps
         run: |
           python -m pip install --upgrade pip
