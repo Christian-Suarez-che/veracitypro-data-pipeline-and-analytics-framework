@@ -1,2 +1,133 @@
 version: 2
-models: []
+
+models:
+
+  - name: stg_keepa_price_events
+    description: "{{ doc('keepa_price_events') }}"
+    columns:
+      - name: asin
+        description: "Amazon Standard Identification Number (product id)."
+        tests: [not_null]
+      - name: event_ts
+        description: "Event timestamp (normalized to TIMESTAMP_NTZ)."
+        tests: [not_null]
+      - name: price_usd
+        description: "Observed price in USD (Keepa cents / 100)."
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [asin, event_ts]
+
+  - name: stg_keepa_rank_events
+    description: "{{ doc('keepa_rank_events') }}"
+    columns:
+      - name: asin
+        description: "ASIN."
+        tests: [not_null]
+      - name: event_ts
+        description: "Event timestamp (TIMESTAMP_NTZ)."
+        tests: [not_null]
+      - name: sales_rank
+        description: "Category sales rank (lower is better)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [asin, event_ts]
+
+  - name: stg_keepa_rating_events
+    description: "{{ doc('keepa_rating_events') }}"
+    columns:
+      - name: asin
+        description: "ASIN."
+        tests: [not_null]
+      - name: event_ts
+        description: "Event timestamp (TIMESTAMP_NTZ)."
+        tests: [not_null]
+      - name: rating
+        description: "Average rating at event time (0–5)."
+      - name: ratings_count
+        description: "Cumulative ratings count at event time."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [asin, event_ts]
+
+  - name: stg_scraper_product
+    description: "{{ doc('scraper_product') }}"
+    columns:
+      - name: asin
+        description: "ASIN."
+        tests: [not_null]
+      - name: scraped_at
+        description: "When the product page was scraped."
+        tests: [not_null]
+      - name: title
+        description: "Product title as shown on PDP."
+      - name: brand
+        description: "Brand displayed on PDP."
+      - name: category
+        description: "Top category or path parsed by ScraperAPI."
+      - name: scraped_price
+        description: "Price parsed from PDP at scrape time."
+
+  - name: stg_scraper_offers
+    description: "{{ doc('scraper_offers') }}"
+    columns:
+      - name: asin
+        description: "ASIN whose offers were scraped."
+        tests: [not_null]
+      - name: snapshot_ts
+        description: "When the offers list was scraped."
+        tests: [not_null]
+      - name: sold_by
+        description: "Seller/merchant name."
+        tests: [not_null]
+      - name: ships_from
+        description: "Shipping origin reported."
+      - name: price
+        description: "Offer price."
+      - name: shipping_price
+        description: "Shipping portion of the offer price."
+      - name: has_prime_shipping
+        description: "Prime-eligible shipping flag."
+      - name: is_fba
+        description: "Fulfilled by Amazon flag."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [asin, snapshot_ts, sold_by]
+
+  - name: stg_spapi_orders
+    description: "{{ doc('spapi_orders') }}"
+    columns:
+      - name: order_id
+        description: "AmazonOrderId from SP-API."
+        tests: [not_null]
+      - name: asin
+        description: "Order item ASIN."
+        tests: [not_null]
+      - name: qty
+        description: "Quantity ordered for the item."
+        tests: [not_null]
+      - name: item_price
+        description: "Line item price (SP-API ItemPrice.Amount)."
+      - name: purchase_ts
+        description: "PurchaseDate from the order."
+      - name: order_status
+        description: "OrderStatus from the order."
+        tests:
+          - accepted_values:
+              values:
+                - 'Pending'
+                - 'Unshipped'
+                - 'PartiallyShipped'
+                - 'Shipped'
+                - 'Canceled'
+                - 'Unfulfillable'
+                - 'InvoiceUnconfirmed'
+                - 'PendingAvailability'
+              quote: true
+      - name: marketplace_id
+        description: "MarketplaceId of the order."
+      - name: ingest_dt
+        description: "Landing date of the raw payload."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [order_id, asin]

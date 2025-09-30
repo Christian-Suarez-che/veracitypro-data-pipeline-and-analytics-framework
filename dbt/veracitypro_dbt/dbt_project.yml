@@ -4,4 +4,4 @@ profile: 'veracitypro_dbt'
 model-paths: ['models']
 macro-paths: ['macros']
 dbt-cloud:
-  project-id: <YOUR_PROJECT_ID>
+  project-id: 70471823510525
