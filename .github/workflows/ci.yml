@@ -8,7 +8,6 @@ on:
 
 jobs:
   lint:
-    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,29 +17,28 @@ jobs:
       - name: Install Ruff
         run: |
           python -m pip install --upgrade pip
-          pip install "ruff==0.6.*"
+          pip install ruff
       - name: Ruff check
         run: ruff check .
 
+  # Keep the same job id so existing required check names still match
   dbt-compile:
-    name: dbt-compile
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: dbt/veracitypro_dbt
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dbt
+
+      - name: Install dbt (core + Snowflake)
         run: |
           python -m pip install --upgrade pip
-          pip install dbt-core dbt-snowflake
+          pip install "dbt-core" "dbt-snowflake"
+
       - name: Prepare dummy profile (absolute path)
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/.ci"
-          cat > "$GITHUB_WORKSPACE/.ci/profiles.yml" <<'EOF'
+          mkdir -p "$GITHUB_WORKSPACE/dbt"
+          cat > "$GITHUB_WORKSPACE/dbt/profiles.yml" <<'EOF'
           veracitypro_dbt:
             target: ci
             outputs:
@@ -55,17 +53,19 @@ jobs:
                 schema: RAW
                 threads: 1
           EOF
+
       - name: dbt deps
-        env:
-          DBT_PROFILES_DIR: ${{ github.workspace }}/.ci
+        working-directory: dbt/veracitypro_dbt
         run: dbt deps
-      - name: dbt compile
+
+      # Use parse (no DB connection) to avoid login with dummy creds
+      - name: dbt parse (no database connection)
         env:
-          DBT_PROFILES_DIR: ${{ github.workspace }}/.ci
-        run: dbt compile
+          DBT_PROFILES_DIR: ${{ github.workspace }}/dbt
+        working-directory: dbt/veracitypro_dbt
+        run: dbt parse
 
   tests:
-    name: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,17 +76,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest fastjsonschema requests
-      # TEMPORARY: make extractor/ a proper package for CI
-      - name: Create __init__.py in extractor tree (temporary)
-        run: |
-          python - <<'PY'
-          import pathlib
-          root = pathlib.Path('extractor')
-          if root.exists():
-              for d in [root, *root.rglob('*')]:
-                  if d.is_dir():
-                      (d / '__init__.py').touch()
-          PY
       - name: Add repo to PYTHONPATH
         run: echo "PYTHONPATH=${PYTHONPATH}:${GITHUB_WORKSPACE}" >> "$GITHUB_ENV"
       - name: Unit tests
