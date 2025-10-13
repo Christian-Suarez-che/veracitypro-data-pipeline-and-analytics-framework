@@ -33,6 +33,11 @@ htmlcov/
 dbt/target/
 dbt/logs/
 profiles.yml
+manifest.json
+graph_summary.json
+run_results.json
+partial_parse.msgpack
+perf_info.json
 
 # ---------- Airflow (local only) ----------
 airflow/airflow.db
