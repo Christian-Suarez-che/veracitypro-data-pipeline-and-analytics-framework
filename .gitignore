@@ -38,6 +38,7 @@ graph_summary.json
 run_results.json
 partial_parse.msgpack
 perf_info.json
+semantic_manifest
 
 # ---------- Airflow (local only) ----------
 airflow/airflow.db
