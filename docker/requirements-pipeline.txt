@@ -13,3 +13,7 @@ pytest
 ruff
 jupyter
 ipykernel
+dbt-core==1.7.13
+dbt-snowflake==1.7.3
+astronomer-cosmos==1.5.0   # optional
+requests==2.*

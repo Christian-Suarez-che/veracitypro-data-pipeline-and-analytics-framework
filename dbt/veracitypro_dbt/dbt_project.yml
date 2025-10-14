@@ -1,7 +1,62 @@
-name: 'veracitypro_dbt'
-version: '1.0'
-profile: 'veracitypro_dbt'
-model-paths: ['models']
-macro-paths: ['macros']
-dbt-cloud:
-  project-id: 70471823510525
+name: "veracitypro_dbt"
+version: "1.0"
+require-dbt-version: ">=1.7.0,<2.0.0"
+
+# Keep this to match CI and your profiles.yml
+profile: "veracitypro_dbt"
+
+on-run-start:
+  - "alter session set timezone = 'America/New_York';"
+
+# Project paths
+model-paths: ["models"]
+macro-paths: ["macros"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+
+# Artifacts / logs
+target-path: "target"     # run_results.json, manifest.json, etc.
+log-path: "logs"
+clean-targets: ["target", "dbt_packages"]
+
+# Identifiers as written (no quoting)
+quoting:
+  database: false
+  schema: false
+  identifier: false
+
+# Make tests non-blocking and capture failing rows in MONITORING
+tests:
+  +severity: warn
+  +store_failures: true
+  +schema: MONITORING
+
+# Runtime variables
+vars:
+  as_of_date: "{{ env_var('AS_OF_DATE', 'auto') }}"  # Airflow can pass {{ ds }}
+
+# Model configuration by layer
+models:
+  veracitypro_dbt:
+
+    stg:
+      +schema: STG
+      +tags: ["stg"]
+      +materialized: view
+
+    core:
+      +schema: CORE
+      +tags: ["core"]
+      +materialized: table
+
+    marts:
+      +schema: MART            # singular per your standard
+      +tags: ["marts"]
+      +materialized: table
+
+    ml:
+      +schema: ML
+      +tags: ["ml"]
+      +materialized: table

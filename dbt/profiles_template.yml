@@ -1,13 +1,35 @@
-# Template only; fill via env vars in local/CI
 veracitypro_dbt:
-  target: dev
+  # Use "prod" in Astro Cloud. Switch to "dev" locally if you want a sandbox.
+  target: prod
+
   outputs:
+    prod:
+      type: snowflake
+      account: "{{ env_var('DBT_ACCOUNT') }}"                 # e.g. xy12345.us-east-1
+      user: "{{ env_var('DBT_USER') }}"                       # AIRFLOW_DBT_USER or similar
+      password: "{{ env_var('DBT_PASSWORD') }}"               # keep in Astro env, never in git
+      role: "{{ env_var('DBT_ROLE', 'DBT_ROLE') }}"
+      warehouse: "{{ env_var('DBT_WAREHOUSE', 'WH_TRANSFORM_S') }}"
+      database: "{{ env_var('DBT_DATABASE', 'VP_DWH') }}"
+      schema: "{{ env_var('DBT_SCHEMA', 'STG') }}"            # dbt_project maps folders → schemas
+      threads: 4
+      client_session_keep_alive: false
+      query_tag: "veracitypro_dbt"
+
     dev:
       type: snowflake
-      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-      user: "{{ env_var('SNOWFLAKE_USER') }}"
-      private_key_path: "{{ env_var('SNOWFLAKE_KEY_PATH') }}"
-      role: TRANSFORMER_ROLE
-      database: VP_DEV
-      warehouse: TRANSFORM_WH
-      schema: ANALYTICS
+      account: "{{ env_var('DBT_DEV_ACCOUNT', env_var('DBT_ACCOUNT')) }}"
+      user: "{{ env_var('DBT_DEV_USER', env_var('DBT_USER')) }}"
+      password: "{{ env_var('DBT_DEV_PASSWORD', env_var('DBT_PASSWORD')) }}"
+      role: "{{ env_var('DBT_DEV_ROLE', 'DEV_ROLE') }}"
+      warehouse: "{{ env_var('DBT_DEV_WAREHOUSE', 'WH_DEV_XS') }}"
+      database: "{{ env_var('DBT_DEV_DATABASE', 'VP_DEV') }}"
+      schema: "{{ env_var('DBT_DEV_SCHEMA', 'ANALYTICS_DEV') }}"
+      threads: 4
+      client_session_keep_alive: false
+      query_tag: "veracitypro_dbt_dev"
+
+# --- OPTIONAL: Keypair auth (use instead of password) ---
+# Replace the password line above with:
+#   private_key: "{{ env_var('DBT_PRIVATE_KEY_PEM') }}"
+#   private_key_passphrase: "{{ env_var('DBT_PRIVATE_KEY_PASSPHRASE', '') }}"
