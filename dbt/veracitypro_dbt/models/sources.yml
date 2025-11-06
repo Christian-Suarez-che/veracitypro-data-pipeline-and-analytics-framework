@@ -1,51 +1,19 @@
+# models/sources.yml
+# Summary:
+# - Declares RAW.KEEPA_RAW_STREAM (Snowflake STREAM over RAW.KEEPA_RAW).
+# - Exposes lineage fields for audit & CDC logic in staging.
 version: 2
-
 sources:
-  - name: raw
-    database: VP_DWH
+  - name: RAW
+    database: "{{ env_var('DBT_DATABASE', 'VP_DWH') }}"
     schema: RAW
-    description: "Raw landing area for API JSON payloads; one row per ingest."
-    loader: "S3 → Snowflake external stages (KEEPA, SCRAPERAPI, SPAPI)"
     tables:
-
-      - name: KEEPA_RAW
-        description: "Raw Keepa responses (nested arrays for prices, ranks, ratings)."
-        loaded_at_field: INGEST_DT
-        freshness:
-          warn_after: {count: 2, period: day}
-          error_after: {count: 7, period: day}
+      - name: KEEPA_RAW_STREAM
+        description: "Stream exposing new/changed NDJSON lines (one Keepa product per row)"
         columns:
-          - name: PAYLOAD
-            description: "Full Keepa JSON as VARIANT."
-            tests: [not_null]
-          - name: INGEST_DT
-            description: "Date the file landed in RAW."
-            tests: [not_null]
-
-      - name: SCRAPERAPI_RAW
-        description: "Raw ScraperAPI responses (product page, offers, search, reviews)."
-        loaded_at_field: INGEST_DT
-        freshness:
-          warn_after: {count: 2, period: day}
-          error_after: {count: 7, period: day}
-        columns:
-          - name: PAYLOAD
-            description: "Full ScraperAPI JSON as VARIANT."
-            tests: [not_null]
-          - name: INGEST_DT
-            description: "Date the file landed in RAW."
-            tests: [not_null]
-
-      - name: SPAPI_RAW
-        description: "Raw Amazon Selling Partner API (SP-API) responses (Orders, Listings, Pricing, etc.)."
-        loaded_at_field: INGEST_DT
-        freshness:
-          warn_after: {count: 2, period: day}
-          error_after: {count: 7, period: day}
-        columns:
-          - name: PAYLOAD
-            description: "Full SP-API JSON as VARIANT."
-            tests: [not_null]
-          - name: INGEST_DT
-            description: "Date the file landed in RAW."
-            tests: [not_null]
+          - name: PAYLOAD                # VARIANT: entire NDJSON line
+          - name: FILENAME               # from COPY metadata$filename
+          - name: LAST_MODIFIED          # from COPY metadata$last_modified
+          - name: _AIRBYTE_RAW_ID        # Airbyte lineage id
+          - name: _AIRBYTE_EXTRACTED_AT  # Airbyte extraction ts
+          - name: INGEST_DT              # COPY load timestamp
