@@ -1,0 +1,7 @@
+name: 'veracitypro_dbt'
+version: '1.0'
+profile: 'veracitypro_dbt'
+model-paths: ['models']
+macro-paths: ['macros']
+dbt-cloud:
+  project-id: 70471823510525

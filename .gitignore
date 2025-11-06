@@ -30,10 +30,11 @@ venv/
 htmlcov/
 
 # ---------- dbt ----------
-dbt/target/
-dbt/logs/
+dbt/veracitypro_dbt/target/*
+dbt/veracitypro_dbt/logs/*
 profiles.yml
 dbt/veracitypro_dbt/logs/
+
 
 # ---------- Airflow (local only) ----------
 airflow/airflow.db
