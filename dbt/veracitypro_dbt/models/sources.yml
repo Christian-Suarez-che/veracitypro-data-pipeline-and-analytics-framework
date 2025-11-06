@@ -1,2 +1,19 @@
+# models/sources.yml
+# Summary:
+# - Declares RAW.KEEPA_RAW_STREAM (Snowflake STREAM over RAW.KEEPA_RAW).
+# - Exposes lineage fields for audit & CDC logic in staging.
 version: 2
-sources: []
+sources:
+  - name: RAW
+    database: "{{ env_var('DBT_DATABASE', 'VP_DWH') }}"
+    schema: RAW
+    tables:
+      - name: KEEPA_RAW_STREAM
+        description: "Stream exposing new/changed NDJSON lines (one Keepa product per row)"
+        columns:
+          - name: PAYLOAD                # VARIANT: entire NDJSON line
+          - name: FILENAME               # from COPY metadata$filename
+          - name: LAST_MODIFIED          # from COPY metadata$last_modified
+          - name: _AIRBYTE_RAW_ID        # Airbyte lineage id
+          - name: _AIRBYTE_EXTRACTED_AT  # Airbyte extraction ts
+          - name: INGEST_DT              # COPY load timestamp

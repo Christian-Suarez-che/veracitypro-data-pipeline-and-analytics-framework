@@ -1,0 +1,5 @@
+# Summary:
+# - Adds dbt_utils for convenience tests (accepted_values, expression checks).
+packages:
+  - package: dbt-labs/dbt_utils
+    version: 1.3.1
