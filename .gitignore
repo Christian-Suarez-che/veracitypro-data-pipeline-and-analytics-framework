@@ -33,6 +33,7 @@ htmlcov/
 dbt/target/
 dbt/logs/
 profiles.yml
+dbt/veracitypro_dbt/logs/
 
 # ---------- Airflow (local only) ----------
 airflow/airflow.db
