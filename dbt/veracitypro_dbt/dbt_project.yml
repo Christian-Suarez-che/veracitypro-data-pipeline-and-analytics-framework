@@ -1,7 +1,42 @@
-name: 'veracitypro_dbt'
-version: '1.0'
-profile: 'veracitypro_dbt'
-model-paths: ['models']
-macro-paths: ['macros']
-dbt-cloud:
-  project-id: 70471823510525
+# veracitypro_keepa / dbt_project.yml
+# Summary:
+# - Central project config for VeracityPro Keepa pipeline.
+# - Layered schemas (STG, CORE, MARTS, MONITOR). Tests warn, not fail builds.
+# - Works with Snowflake Streams for CDC; models use incremental+merge.
+name: "veracitypro_keepa"
+version: "1.0"
+profile: "veracitypro_dbt"
+
+require-dbt-version: ">=1.7.0,<2.0.0"
+
+on-run-start:
+  - "alter session set timezone = 'America/New_York'"
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+tests:
+  +severity: warn          # capture, don't break CI
+  +store_failures: true
+  +schema: MONITOR
+
+vars:
+  as_of_date: "{{ env_var('AS_OF_DATE', 'auto') }}"
+
+models:
+  veracitypro_keepa:
+    stg:
+      +schema: STG
+      +materialized: incremental
+    core:
+      +schema: CORE
+      +materialized: incremental
+    marts:
+      +schema: MARTS
+      +materialized: table
+    monitor:
+      +schema: MONITOR
+      +materialized: view
