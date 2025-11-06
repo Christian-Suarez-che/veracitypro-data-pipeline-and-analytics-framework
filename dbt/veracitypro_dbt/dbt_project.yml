@@ -5,7 +5,7 @@
 # - Works with Snowflake Streams for CDC; models use incremental+merge.
 name: "veracitypro_keepa"
 version: "1.0"
-profile: "veracitypro"
+profile: "veracitypro_dbt"
 
 require-dbt-version: ">=1.7.0,<2.0.0"
 
