@@ -3,7 +3,7 @@ Senior capstone project building a cloud-based data pipeline and analytics frame
 
 **Goal:** Scrapers/DB/API → Airbyte → S3 → Snowflake → dbt → Airflow → BI (Power BI/Tableau/Data Science).
 
-**Status:** Week 4 - dbt setup
+**Status:** Week 9 - Data Modeling
 **Owner:** Christian Suarez
 
 
