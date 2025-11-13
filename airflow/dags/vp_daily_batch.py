@@ -1,1 +1,274 @@
-# placeholder DAG; real code later
+"""
+VeracityPro Daily Batch Pipeline
+Orchestrates: Airbyte → S3 → Snowflake → dbt (via Cosmos) → Power BI
+"""
+
+from datetime import datetime, timedelta
+from pathlib import Path
+import os
+
+from airflow.decorators import dag, task
+from airflow.providers.airbyte.operators.airbyte import AirbyteTriggerSyncOperator
+from airflow.providers.airbyte.sensors.airbyte import AirbyteJobSensor
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator
+from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
+from airflow.utils.trigger_rule import TriggerRule
+
+from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig
+from cosmos.profiles import SnowflakeUserPasswordProfileMapping
+
+from slack_notifier import format_dag_start_message, format_dag_success_message
+
+
+# DAG Configuration
+DAG_ID = "vp_daily_batch"
+AIRBYTE_CONNECTION_ID = os.getenv(
+    "AIRBYTE_KEEPA_CONNECTION_ID", "your-connection-id-here"
+)
+S3_BUCKET = "vp-raw-dev-us-east-2"
+S3_PREFIX = "env=dev/source=keepa/"
+DBT_PROJECT_PATH = Path(__file__).parent.parent.parent / "dbt" / "veracitypro_dbt"
+
+
+default_args = {
+    "owner": "data_engineering",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
+
+
+@dag(
+    dag_id=DAG_ID,
+    default_args=default_args,
+    description="Daily ELT: Keepa → S3 → Snowflake → dbt → Power BI",
+    schedule="0 6 * * *",  # 6 AM UTC daily
+    start_date=datetime(2024, 1, 1),
+    catchup=False,
+    tags=["veracitypro", "keepa", "production"],
+    max_active_runs=1,
+)
+def vp_daily_batch():
+    # ===== SLACK: START NOTIFICATION =====
+    @task
+    def notify_start(**context):
+        """Send Slack notification that pipeline has started."""
+        return {
+            "dag_id": context["dag"].dag_id,
+            "run_id": context["run_id"],
+            "execution_date": context["execution_date"],
+        }
+
+    start_info = notify_start()
+
+    slack_start = SlackWebhookOperator(
+        task_id="slack_notify_start",
+        slack_webhook_conn_id="vp_slack_webhook",
+        message=format_dag_start_message(
+            dag_id="{{ dag.dag_id }}",
+            run_id="{{ run_id }}",
+            execution_date="{{ execution_date }}",
+        ),
+        username="Airflow",
+    )
+
+    # ===== AIRBYTE: TRIGGER SYNC =====
+    airbyte_trigger = AirbyteTriggerSyncOperator(
+        task_id="airbyte_trigger_keepa_sync",
+        airbyte_conn_id="airbyte_cloud",
+        connection_id=AIRBYTE_CONNECTION_ID,
+        asynchronous=True,
+        timeout=3600,
+        wait_seconds=10,
+    )
+
+    # ===== AIRBYTE: WAIT FOR COMPLETION =====
+    airbyte_sensor = AirbyteJobSensor(
+        task_id="airbyte_wait_for_sync",
+        airbyte_conn_id="airbyte_cloud",
+        airbyte_job_id="{{ task_instance.xcom_pull(task_ids='airbyte_trigger_keepa_sync', key='job_id') }}",
+        timeout=7200,
+        poke_interval=60,
+    )
+
+    # ===== S3: VERIFY DATA ARRIVAL (OPTIONAL) =====
+    # If you want to double-check S3 has files before COPY
+    s3_check = S3KeySensor(
+        task_id="s3_verify_keepa_data",
+        aws_conn_id="aws_default",
+        bucket_name=S3_BUCKET,
+        bucket_key=f"{S3_PREFIX}*.json",
+        wildcard_match=True,
+        timeout=600,
+        poke_interval=30,
+        mode="poke",
+    )
+
+    # ===== SNOWFLAKE: COPY INTO RAW =====
+    snowflake_copy = SnowflakeOperator(
+        task_id="snowflake_copy_into_raw",
+        snowflake_conn_id="vp_snowflake",
+        sql="""
+            -- Use the AIRFLOW_ROLE or DBT_ROLE with appropriate permissions
+            USE ROLE DBT_ROLE;
+            USE WAREHOUSE WH_INGEST;
+            USE DATABASE VP_DWH;
+            USE SCHEMA RAW;
+
+            -- COPY data from S3 into KEEPA_RAW table
+            COPY INTO KEEPA_RAW (payload, ingest_dt)
+            FROM (
+                SELECT
+                    $1 as payload,
+                    CURRENT_DATE() as ingest_dt
+                FROM @STAGE_KEEPA
+            )
+            FILE_FORMAT = (TYPE = 'JSON')
+            PATTERN = '.*\\.json'
+            ON_ERROR = 'CONTINUE';
+
+            -- Return row count for logging
+            SELECT 'Loaded rows: ' || COUNT(*) as status
+            FROM KEEPA_RAW
+            WHERE ingest_dt = CURRENT_DATE();
+        """,
+        autocommit=True,
+    )
+
+    # ===== DBT: BUILD MODELS VIA COSMOS =====
+    dbt_build = DbtTaskGroup(
+        group_id="dbt_transform",
+        project_config=ProjectConfig(
+            dbt_project_path=str(DBT_PROJECT_PATH),
+        ),
+        profile_config=ProfileConfig(
+            profile_name="veracitypro_dbt",
+            target_name="prod",
+            profile_mapping=SnowflakeUserPasswordProfileMapping(
+                conn_id="vp_snowflake",
+                profile_args={
+                    "database": "VP_DWH",
+                    "schema": "STG",
+                    "warehouse": "WH_INGEST",
+                },
+            ),
+        ),
+        execution_config=ExecutionConfig(
+            dbt_executable_path=f"{os.environ.get('AIRFLOW_HOME', '/usr/local/airflow')}/dbt_venv/bin/dbt",
+        ),
+        operator_args={
+            "install_deps": True,
+            "full_refresh": False,
+        },
+        default_args={
+            "retries": 2,
+            "queue": "dbt",  # Route to dbt worker queue if you have one
+        },
+    )
+
+    # ===== POWER BI: REFRESH PLACEHOLDER =====
+    @task
+    def powerbi_refresh_placeholder():
+        """
+        Placeholder for Power BI dataset refresh.
+        Replace with HttpOperator or PowerBIHook when ready.
+        """
+        print("Power BI refresh step - to be implemented")
+        return "success"
+
+    powerbi_task = powerbi_refresh_placeholder()
+
+    # ===== SLACK: SUCCESS NOTIFICATION =====
+    @task
+    def prepare_success_summary(**context):
+        """Gather dbt stats from XCom if available."""
+        ti = context["task_instance"]
+        # Attempt to fetch dbt summary from Cosmos tasks
+        dbt_summary = {}
+        try:
+            # Cosmos may push metadata to XCom; adapt key as needed
+            dbt_summary = (
+                ti.xcom_pull(task_ids="dbt_transform", key="dbt_summary") or {}
+            )
+        except Exception:
+            pass
+
+        return {
+            "dag_id": context["dag"].dag_id,
+            "run_id": context["run_id"],
+            "execution_date": context["execution_date"],
+            "dbt_summary": dbt_summary,
+        }
+
+    success_info = prepare_success_summary()
+
+    slack_success = SlackWebhookOperator(
+        task_id="slack_notify_success",
+        slack_webhook_conn_id="vp_slack_webhook",
+        message=format_dag_success_message(
+            dag_id="{{ dag.dag_id }}",
+            run_id="{{ run_id }}",
+            execution_date="{{ execution_date }}",
+        ),
+        username="Airflow",
+        trigger_rule=TriggerRule.ALL_SUCCESS,
+    )
+
+    # ===== SLACK: FAILURE NOTIFICATION =====
+    @task(trigger_rule=TriggerRule.ONE_FAILED)
+    def slack_notify_failure(**context):
+        """Send failure notification to Slack."""
+        from slack_notifier import format_dag_failure_message
+
+        context["task_instance"]
+        failed_task_id = None
+        error_msg = None
+
+        # Find which task failed
+        dag_run = context["dag_run"]
+        for task_instance in dag_run.get_task_instances():
+            if task_instance.state == "failed":
+                failed_task_id = task_instance.task_id
+                error_msg = str(task_instance.log_url)
+                break
+
+        message = format_dag_failure_message(
+            dag_id=context["dag"].dag_id,
+            run_id=context["run_id"],
+            execution_date=context["execution_date"],
+            failed_task=failed_task_id,
+            error_message=error_msg,
+        )
+
+        SlackWebhookOperator(
+            task_id="send_failure_alert",
+            slack_webhook_conn_id="vp_slack_webhook",
+            message=message,
+            username="Airflow",
+        ).execute(context=context)
+
+    failure_alert = slack_notify_failure()
+
+    # ===== TASK DEPENDENCIES =====
+    # Linear flow with Slack at start/end
+    start_info >> slack_start >> airbyte_trigger
+    airbyte_trigger >> airbyte_sensor >> s3_check
+    s3_check >> snowflake_copy >> dbt_build
+    dbt_build >> powerbi_task >> success_info >> slack_success
+
+    # Failure path (runs if ANY task fails)
+    [
+        airbyte_trigger,
+        airbyte_sensor,
+        s3_check,
+        snowflake_copy,
+        dbt_build,
+        powerbi_task,
+    ] >> failure_alert
+
+
+# Instantiate the DAG
+vp_daily_batch_dag = vp_daily_batch()

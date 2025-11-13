@@ -1,9 +1,9 @@
-# veracitypro_keepa / dbt_project.yml
+# veracitypro_dbt / dbt_project.yml
 # Summary:
 # - Central project config for VeracityPro Keepa pipeline.
-# - Layered schemas (STG, CORE, MARTS, MONITOR). Tests warn, not fail builds.
+# - Layered schemas (STG, CORE, MART, MONITORING). Tests warn, not fail builds.
 # - Works with Snowflake Streams for CDC; models use incremental+merge.
-name: "veracitypro_keepa"
+name: "veracitypro_dbt"
 version: "1.0"
 profile: "veracitypro_dbt"
 
@@ -21,13 +21,13 @@ clean-targets: ["target", "dbt_packages"]
 tests:
   +severity: warn          # capture, don't break CI
   +store_failures: true
-  +schema: MONITOR
+  +schema: MONITORING
 
 vars:
   as_of_date: "{{ env_var('AS_OF_DATE', 'auto') }}"
 
 models:
-  veracitypro_keepa:
+  veracitypro_dbt:
     stg:
       +schema: STG
       +materialized: incremental
@@ -35,8 +35,8 @@ models:
       +schema: CORE
       +materialized: incremental
     marts:
-      +schema: MARTS
+      +schema: MART
       +materialized: table
-    monitor:
-      +schema: MONITOR
+    util:
+      +schema: MONITORING
       +materialized: view
