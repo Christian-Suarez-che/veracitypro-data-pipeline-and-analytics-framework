@@ -19,13 +19,14 @@ from airflow.utils.trigger_rule import TriggerRule
 from cosmos import DbtTaskGroup, ProjectConfig, ProfileConfig, ExecutionConfig
 from cosmos.profiles import SnowflakeUserPasswordProfileMapping
 
-from slack_notifier import format_dag_start_message, format_dag_success_message
+# Slack formatting functions are inline to avoid import issues
 
 
 # DAG Configuration
 DAG_ID = "vp_daily_batch"
 AIRBYTE_CONNECTION_ID = os.getenv(
-    "AIRBYTE_KEEPA_CONNECTION_ID", "Set it in Astro → Deployments → Environment Variables."
+    "AIRBYTE_KEEPA_CONNECTION_ID",
+    "Set it in Astro → Deployments → Environment Variables.",
 )
 S3_BUCKET = "vp-raw-dev-us-east-2"
 S3_PREFIX = "env=dev/source=keepa/stream=product_raw/"
@@ -46,7 +47,7 @@ default_args = {
     dag_id=DAG_ID,
     default_args=default_args,
     description="Daily ELT: Keepa → S3 → Snowflake → dbt → Power BI",
-    schedule = "10 0 * * *",  # 12:10 AM UTC daily
+    schedule="10 0 * * *",  # 12:10 AM UTC daily
     start_date=datetime(2025, 11, 15),
     catchup=False,
     tags=["veracitypro", "keepa", "production"],
@@ -68,11 +69,13 @@ def vp_daily_batch():
     slack_start = SlackWebhookOperator(
         task_id="slack_notify_start",
         slack_webhook_conn_id="vp_slack_webhook",
-        message=format_dag_start_message(
-            dag_id="{{ dag.dag_id }}",
-            run_id="{{ run_id }}",
-            execution_date="{{ execution_date }}",
-        ),
+        message="""
+:rocket: *Pipeline Started*
+• DAG: `{{ dag.dag_id }}`
+• Run ID: `{{ run_id }}`
+• Execution Date: `{{ execution_date }}`
+• Status: _Running_
+        """.strip(),
         username="Airflow",
     )
 
@@ -157,7 +160,7 @@ def vp_daily_batch():
             ),
         ),
         execution_config=ExecutionConfig(
-            dbt_executable_path=f"{os.environ.get('AIRFLOW_HOME', '/usr/local/airflow')}/dbt_venv/bin/dbt",
+            dbt_executable_path="/usr/local/bin/dbt",  # dbt is installed globally in Astro Runtime
         ),
         operator_args={
             "install_deps": True,
@@ -219,9 +222,8 @@ def vp_daily_batch():
             "airbyte_job_id": ti.xcom_pull(
                 task_ids="airbyte_trigger_keepa_sync", key="job_id"
             ),
-            "dbt_summary": ti.xcom_pull(
-                task_ids="dbt_transform", key="dbt_summary"
-            ) or {},
+            "dbt_summary": ti.xcom_pull(task_ids="dbt_transform", key="dbt_summary")
+            or {},
             "rows_loaded_keepa_raw": ti.xcom_pull(
                 task_ids="snowflake_copy_into_raw", key="rows_loaded"
             ),
@@ -270,11 +272,12 @@ def vp_daily_batch():
     slack_success = SlackWebhookOperator(
         task_id="slack_notify_success",
         slack_webhook_conn_id="vp_slack_webhook",
-        message=format_dag_success_message(
-            dag_id="{{ dag.dag_id }}",
-            run_id="{{ run_id }}",
-            execution_date="{{ execution_date }}",
-        ),
+        message="""
+:white_check_mark: *Pipeline Completed Successfully*
+• DAG: `{{ dag.dag_id }}`
+• Run ID: `{{ run_id }}`
+• Execution Date: `{{ execution_date }}`
+        """.strip(),
         username="Airflow",
         trigger_rule=TriggerRule.ALL_SUCCESS,
     )
@@ -283,9 +286,6 @@ def vp_daily_batch():
     @task(trigger_rule=TriggerRule.ONE_FAILED)
     def slack_notify_failure(**context):
         """Send failure notification to Slack."""
-        from slack_notifier import format_dag_failure_message
-
-        context["task_instance"]
         failed_task_id = None
         error_msg = None
 
@@ -297,13 +297,14 @@ def vp_daily_batch():
                 error_msg = str(task_instance.log_url)
                 break
 
-        message = format_dag_failure_message(
-            dag_id=context["dag"].dag_id,
-            run_id=context["run_id"],
-            execution_date=context["execution_date"],
-            failed_task=failed_task_id,
-            error_message=error_msg,
-        )
+        message = f"""
+:x: *Pipeline Failed*
+• DAG: `{context["dag"].dag_id}`
+• Run ID: `{context["run_id"]}`
+• Execution Date: `{context["execution_date"]}`
+• Failed Task: `{failed_task_id or "Unknown"}`
+• Log URL: {error_msg or "N/A"}
+        """.strip()
 
         SlackWebhookOperator(
             task_id="send_failure_alert",
@@ -319,17 +320,29 @@ def vp_daily_batch():
     start_info >> slack_start >> airbyte_trigger
     airbyte_trigger >> airbyte_sensor >> s3_check
     s3_check >> snowflake_copy >> dbt_build
-    dbt_build >> powerbi_task >> success_info >> monitoring_info >> monitoring_insert >> slack_success
+    (
+        dbt_build
+        >> powerbi_task
+        >> success_info
+        >> monitoring_info
+        >> monitoring_insert
+        >> slack_success
+    )
 
     # Failure path (runs if ANY task fails)
-    [
-        airbyte_trigger,
-        airbyte_sensor,
-        s3_check,
-        snowflake_copy,
-        dbt_build,
-        powerbi_task,
-    ] >> monitoring_info >> monitoring_insert >> failure_alert
+    (
+        [
+            airbyte_trigger,
+            airbyte_sensor,
+            s3_check,
+            snowflake_copy,
+            dbt_build,
+            powerbi_task,
+        ]
+        >> monitoring_info
+        >> monitoring_insert
+        >> failure_alert
+    )
 
 
 # Instantiate the DAG
