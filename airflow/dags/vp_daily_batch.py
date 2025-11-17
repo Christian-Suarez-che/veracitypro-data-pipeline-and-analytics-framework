@@ -144,10 +144,11 @@ def vp_daily_batch():
     )
 
     # ===== DBT: BUILD MODELS VIA COSMOS =====
+    # Simplified configuration to avoid parse-time validation issues
     dbt_build = DbtTaskGroup(
         group_id="dbt_transform",
         project_config=ProjectConfig(
-            dbt_project_path=str(DBT_PROJECT_PATH.resolve()),
+            dbt_project_path=str(DBT_PROJECT_PATH),
         ),
         profile_config=ProfileConfig(
             profile_name="veracitypro_dbt",
@@ -157,12 +158,11 @@ def vp_daily_batch():
                 profile_args={
                     "database": "VP_DWH",
                     "schema": "STG",
-                    "warehouse": "WH_INGEST",
                 },
             ),
         ),
         execution_config=ExecutionConfig(
-            dbt_executable_path="/home/astro/.local/bin/dbt",  # dbt installed via requirements.txt
+            dbt_executable_path="/home/astro/.local/bin/dbt",
         ),
         operator_args={
             "install_deps": True,
@@ -170,7 +170,6 @@ def vp_daily_batch():
         },
         default_args={
             "retries": 2,
-            "queue": "dbt",  # Route to dbt worker queue if you have one
         },
     )
 
