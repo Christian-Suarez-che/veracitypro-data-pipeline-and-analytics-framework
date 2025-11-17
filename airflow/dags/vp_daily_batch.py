@@ -30,7 +30,8 @@ AIRBYTE_CONNECTION_ID = os.getenv(
 )
 S3_BUCKET = "vp-raw-dev-us-east-2"
 S3_PREFIX = "env=dev/source=keepa/stream=product_raw/"
-DBT_PROJECT_PATH = Path(__file__).parent.parent.parent / "dbt" / "veracitypro_dbt"
+# Use absolute path in Astro container: /usr/local/airflow/dbt/veracitypro_dbt
+DBT_PROJECT_PATH = Path("/usr/local/airflow/dbt/veracitypro_dbt")
 
 
 default_args = {
