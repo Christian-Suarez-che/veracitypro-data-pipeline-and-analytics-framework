@@ -193,7 +193,7 @@ def vp_daily_batch():
                 ti.xcom_pull(task_ids="dbt_transform", key="dbt_summary") or {}
             )
         except Exception:
-            print("Could not fetch dbt summery from XCom")
+            print("Could not fetch dbt summary from XCom")
 
         return {
             "dag_id": context["dag"].dag_id,
