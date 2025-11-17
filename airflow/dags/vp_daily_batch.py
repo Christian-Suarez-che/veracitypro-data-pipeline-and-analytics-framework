@@ -30,8 +30,9 @@ AIRBYTE_CONNECTION_ID = os.getenv(
 )
 S3_BUCKET = "vp-raw-dev-us-east-2"
 S3_PREFIX = "env=dev/source=keepa/stream=product_raw/"
-# Use absolute path in Astro container: /usr/local/airflow/dbt/veracitypro_dbt
-DBT_PROJECT_PATH = Path("/usr/local/airflow/dbt/veracitypro_dbt")
+# Use relative path from AIRFLOW_HOME (/usr/local/airflow in Astro)
+# This resolves to /usr/local/airflow/dbt/veracitypro_dbt in deployed environment
+DBT_PROJECT_PATH = Path(__file__).parent.parent / "dbt" / "veracitypro_dbt"
 
 
 default_args = {
@@ -143,6 +144,7 @@ def vp_daily_batch():
     )
 
     # ===== DBT: BUILD MODELS VIA COSMOS =====
+    # Simplified configuration to avoid parse-time validation issues
     dbt_build = DbtTaskGroup(
         group_id="dbt_transform",
         project_config=ProjectConfig(
@@ -156,12 +158,11 @@ def vp_daily_batch():
                 profile_args={
                     "database": "VP_DWH",
                     "schema": "STG",
-                    "warehouse": "WH_INGEST",
                 },
             ),
         ),
         execution_config=ExecutionConfig(
-            dbt_executable_path="/usr/local/bin/dbt",  # dbt is installed globally in Astro Runtime
+            dbt_executable_path="/home/astro/.local/bin/dbt",
         ),
         operator_args={
             "install_deps": True,
@@ -169,7 +170,6 @@ def vp_daily_batch():
         },
         default_args={
             "retries": 2,
-            "queue": "dbt",  # Route to dbt worker queue if you have one
         },
     )
 
