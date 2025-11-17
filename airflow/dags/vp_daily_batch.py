@@ -1,6 +1,7 @@
 """
 VeracityPro Daily Batch Pipeline
 Orchestrates: Airbyte → S3 → Snowflake → dbt (via Cosmos) → Power BI
+DAG to orchestrate and automate data pipeline
 """
 
 from datetime import datetime, timedelta
