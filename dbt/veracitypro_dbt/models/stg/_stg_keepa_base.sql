@@ -11,7 +11,7 @@ with src as (
     _airbyte_raw_id,
     _airbyte_extracted_at,
     ingest_dt
-  from {{ source('RAW','KEEPA_RAW_STREAM') }}
+  from {{ source('RAW','KEEPA_RAW_STRM') }}
   {% if is_incremental() %}
     where ingest_dt > (select coalesce(max(ingest_ts),'1900-01-01') from {{ this }})
   {% endif %}

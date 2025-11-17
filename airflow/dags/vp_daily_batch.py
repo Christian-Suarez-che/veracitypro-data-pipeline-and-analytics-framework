@@ -24,10 +24,10 @@ from slack_notifier import format_dag_start_message, format_dag_success_message
 # DAG Configuration
 DAG_ID = "vp_daily_batch"
 AIRBYTE_CONNECTION_ID = os.getenv(
-    "AIRBYTE_KEEPA_CONNECTION_ID", "your-connection-id-here"
+    "AIRBYTE_KEEPA_CONNECTION_ID", "Set it in Astro → Deployments → Environment Variables."
 )
 S3_BUCKET = "vp-raw-dev-us-east-2"
-S3_PREFIX = "env=dev/source=keepa/"
+S3_PREFIX = "env=dev/source=keepa/stream=product_raw/"
 DBT_PROJECT_PATH = Path(__file__).parent.parent.parent / "dbt" / "veracitypro_dbt"
 
 
@@ -45,8 +45,8 @@ default_args = {
     dag_id=DAG_ID,
     default_args=default_args,
     description="Daily ELT: Keepa → S3 → Snowflake → dbt → Power BI",
-    schedule="0 6 * * *",  # 6 AM UTC daily
-    start_date=datetime(2024, 1, 1),
+    schedule = "10 0 * * *",  # 12:10 AM UTC daily
+    start_date=datetime(2025, 11, 15),
     catchup=False,
     tags=["veracitypro", "keepa", "production"],
     max_active_runs=1,
@@ -100,7 +100,7 @@ def vp_daily_batch():
         task_id="s3_verify_keepa_data",
         aws_conn_id="aws_default",
         bucket_name=S3_BUCKET,
-        bucket_key=f"{S3_PREFIX}*.json",
+        bucket_key=f"{S3_PREFIX}*.jsonl.gz",
         wildcard_match=True,
         timeout=600,
         poke_interval=30,
@@ -126,8 +126,7 @@ def vp_daily_batch():
                     CURRENT_DATE() as ingest_dt
                 FROM @STAGE_KEEPA
             )
-            FILE_FORMAT = (TYPE = 'JSON')
-            PATTERN = '.*\\.json'
+            PATTERN='.*\\.jsonl\\.gz'
             ON_ERROR = 'CONTINUE';
 
             -- Return row count for logging
@@ -194,7 +193,7 @@ def vp_daily_batch():
                 ti.xcom_pull(task_ids="dbt_transform", key="dbt_summary") or {}
             )
         except Exception:
-            pass
+            print("Could not fetch dbt summery from XCom")
 
         return {
             "dag_id": context["dag"].dag_id,
@@ -204,6 +203,68 @@ def vp_daily_batch():
         }
 
     success_info = prepare_success_summary()
+
+    # ===== MONITORING: COLLECT METRICS =====
+    @task(trigger_rule=TriggerRule.ALL_DONE)
+    def collect_monitoring_metrics(**context):
+        ti = context["task_instance"]
+        dag_run = context["dag_run"]
+
+        return {
+            "dag_id": context["dag"].dag_id,
+            "run_id": context["run_id"],
+            "execution_date": str(context["execution_date"]),
+            "status": dag_run.get_state(),
+            "airbyte_job_id": ti.xcom_pull(
+                task_ids="airbyte_trigger_keepa_sync", key="job_id"
+            ),
+            "dbt_summary": ti.xcom_pull(
+                task_ids="dbt_transform", key="dbt_summary"
+            ) or {},
+            "rows_loaded_keepa_raw": ti.xcom_pull(
+                task_ids="snowflake_copy_into_raw", key="rows_loaded"
+            ),
+        }
+
+    monitoring_info = collect_monitoring_metrics()
+    # inserts monitoring data into the snowflake PIPELINE_RUN_MONITORING table
+    monitoring_insert = SnowflakeOperator(
+        task_id="monitoring_insert",
+        snowflake_conn_id="vp_snowflake",
+        sql="""
+            USE ROLE AIRFLOW_ROLE;
+            USE DATABASE VP_DWH;
+            USE SCHEMA MONITORING;
+            USE WAREHOUSE WH_INGEST;
+
+            INSERT INTO PIPELINE_RUN_MONITORING (
+                dag_id,
+                run_id,
+                execution_date,
+                status,
+                airbyte_job_id,
+                dbt_models_run,
+                dbt_tests_passed,
+                dbt_tests_failed,
+                rows_loaded_keepa_raw,
+                logged_at
+            )
+            VALUES (
+                '{{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["dag_id"] }}',
+                '{{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["run_id"] }}',
+                '{{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["execution_date"] }}',
+                '{{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["status"] }}',
+                '{{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["airbyte_job_id"] }}',
+                {{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["dbt_summary"].get("models_run", 0) }},
+                {{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["dbt_summary"].get("tests_passed", 0) }},
+                {{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["dbt_summary"].get("tests_failed", 0) }},
+                {{ ti.xcom_pull(task_ids="collect_monitoring_metrics")["rows_loaded_keepa_raw"] or 0 }},
+                CURRENT_TIMESTAMP()
+            );
+        """,
+        autocommit=True,
+        trigger_rule=TriggerRule.ALL_DONE,
+    )
 
     slack_success = SlackWebhookOperator(
         task_id="slack_notify_success",
@@ -257,7 +318,7 @@ def vp_daily_batch():
     start_info >> slack_start >> airbyte_trigger
     airbyte_trigger >> airbyte_sensor >> s3_check
     s3_check >> snowflake_copy >> dbt_build
-    dbt_build >> powerbi_task >> success_info >> slack_success
+    dbt_build >> powerbi_task >> success_info >> monitoring_info >> monitoring_insert >> slack_success
 
     # Failure path (runs if ANY task fails)
     [
@@ -267,7 +328,7 @@ def vp_daily_batch():
         snowflake_copy,
         dbt_build,
         powerbi_task,
-    ] >> failure_alert
+    ] >> monitoring_info >> monitoring_insert >> failure_alert
 
 
 # Instantiate the DAG
