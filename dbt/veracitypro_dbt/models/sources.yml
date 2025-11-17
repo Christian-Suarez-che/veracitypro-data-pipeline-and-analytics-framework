@@ -8,7 +8,7 @@ sources:
     database: "{{ env_var('DBT_DATABASE', 'VP_DWH') }}"
     schema: RAW
     tables:
-      - name: KEEPA_RAW_STREAM
+      - name: KEEPA_RAW_STRM
         description: "Stream exposing new/changed NDJSON lines (one Keepa product per row)"
         columns:
           - name: PAYLOAD                # VARIANT: entire NDJSON line
