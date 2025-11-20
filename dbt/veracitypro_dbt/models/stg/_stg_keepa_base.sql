@@ -58,4 +58,4 @@ final as (
 select
   md5(coalesce(asin,'NULL')||'|'||to_varchar(ingest_ts)||'|'||coalesce(_airbyte_raw_id,'NULL')) as stg_row_id,
   final.*
-from final;
+from final
