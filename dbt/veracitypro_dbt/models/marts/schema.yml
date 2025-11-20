@@ -19,10 +19,10 @@ models:
         tests: [unique, not_null]
       - name: asin
         tests:
-          - relationships: { to: ref('dim_product'), field: asin }
+          - relationships: {arguments: {to: ref('dim_product'), field: asin}}
       - name: category_id
         tests:
-          - relationships: { to: ref('dim_category'), field: category_id }
+          - relationships: {arguments: {to: ref('dim_category'), field: category_id}}
 
   - name: fct_price_history_daily
     columns:
@@ -30,7 +30,7 @@ models:
         tests: [unique, not_null]
       - name: asin
         tests:
-          - relationships: { to: ref('dim_product'), field: asin }
+          - relationships: {arguments: {to: ref('dim_product'), field: asin}}
 
   - name: fct_rank_history_daily
     columns:
@@ -38,7 +38,7 @@ models:
         tests: [unique, not_null]
       - name: asin
         tests:
-          - relationships: { to: ref('dim_product'), field: asin }
+          - relationships: {arguments: {to: ref('dim_product'), field: asin}}
 
   - name: fct_review_history_daily
     columns:
@@ -46,7 +46,7 @@ models:
         tests: [unique, not_null]
       - name: asin
         tests:
-          - relationships: { to: ref('dim_product'), field: asin }
+          - relationships: {arguments: {to: ref('dim_product'), field: asin}}
 
   - name: fct_offer_price_daily
     columns:
@@ -54,4 +54,4 @@ models:
         tests: [unique, not_null]
       - name: asin
         tests:
-          - relationships: { to: ref('dim_product'), field: asin }
+          - relationships: {arguments: {to: ref('dim_product'), field: asin}}

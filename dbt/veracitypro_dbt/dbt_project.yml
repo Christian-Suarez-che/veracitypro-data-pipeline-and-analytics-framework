@@ -15,7 +15,6 @@ on-run-start:
 model-paths: ["models"]
 macro-paths: ["macros"]
 analysis-paths: ["analyses"]
-target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
 tests:
@@ -40,3 +39,5 @@ models:
     util:
       +schema: MONITORING
       +materialized: view
+flags:
+  require_generic_test_arguments_property: true
