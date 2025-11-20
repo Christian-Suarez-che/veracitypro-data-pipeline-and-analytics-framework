@@ -4,7 +4,13 @@
 -- - Useful for content coverage/quality analyses and A/B testing.
 {{ config(materialized='incremental', unique_key='stg_aplus_id', incremental_strategy='merge', tags=['keepa','aplus']) }}
 
-with base as (select product_v, asin, ingest_ts from {{ ref('_stg_keepa_base') }}),
+with base as (
+  select
+    aplus_v,          -- aPlus array from _stg_keepa_base
+    asin,
+    ingest_ts
+  from {{ ref('_stg_keepa_base') }}
+),
 
 aplus as (
   select
@@ -14,7 +20,7 @@ aplus as (
     m.value          as mod_v,
     b.ingest_ts
   from base b,
-       lateral flatten(input => b.product_v:aPlus, outer => true) a,
+       lateral flatten(input => b.aplus_v, outer => true) a,   -- flatten aPlus array
        lateral flatten(input => a.value:module,  outer => true) m
 ),
 assets as (
@@ -41,4 +47,4 @@ dedup as (
     from assets a
   ) where rn = 1
 )
-select * from dedup;
+select * from dedup

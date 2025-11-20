@@ -6,10 +6,10 @@
 with src as (
   select
     payload,
-    filename,               -- from COPY INTO
-    last_modified,          -- from COPY INTO
-    _airbyte_raw_id,
-    _airbyte_extracted_at,
+    null::string        as filename,               -- from COPY INTO (not available in this bootstrap load)
+    null::timestamp_tz  as last_modified,          -- from COPY INTO (not available in this bootstrap load)
+    payload:"_airbyte_raw_id"::string              as _airbyte_raw_id,
+    payload:"_airbyte_extracted_at"::timestamp_tz  as _airbyte_extracted_at,
     ingest_dt
   from {{ source('RAW','KEEPA_RAW_STRM') }}
   {% if is_incremental() %}
