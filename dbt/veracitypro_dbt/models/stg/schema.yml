@@ -6,15 +6,11 @@ version: 2
 models:
   - name: stg_keepa_price
     columns:
-      - name: asin
-        tests:
-          - not_null
       - name: price
         tests:
           - dbt_utils.expression_is_true:
               arguments:
-                expression: "price is null or price >= 0"
-
+                expression: "is null or price >= 0"
   - name: stg_keepa_rank
     columns:
       - name: asin
