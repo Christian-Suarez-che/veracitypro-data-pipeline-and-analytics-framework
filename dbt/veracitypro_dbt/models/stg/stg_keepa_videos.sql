@@ -39,7 +39,7 @@ dedup as (
         md5(
             asin || '|' ||
             coalesce(url, name) || '|' ||
-            to_char(snapshot_ts, 'YYYY-MM-DD\"T\"HH24:MI:SSFF3')
+            to_char(snapshot_ts, 'YYYY-MM-DD"T"HH24:MI:SSFF3')
         ) as stg_video_id,
         d.*
     from (
@@ -52,6 +52,7 @@ dedup as (
         from vid v
     ) d
     where rn = 1
+      and (url is not null or name is not null)  -- filter out non-video rows
 )
 
 select
