@@ -2,6 +2,8 @@
 -- Summary:
 -- - Parses offerCSV as sequence of minute,price_cents pairs for each offer.
 -- - Emits (asin, offer_id, snapshot_ts, price, was_sentinel, ingest_ts).
+-- - Filters out real prices that are 0 or > 400 dollars, but keeps
+--   negative sentinel values (price = NULL, was_sentinel = 1).
 
 {{ config(
     materialized='incremental',
@@ -33,8 +35,8 @@ tokens as (
         b.asin,
         b.offer_id,
         b.ingest_ts,
-        f.index              as i,    -- token index
-        f.value::string      as t     -- token value
+        f.index         as i,   -- token index
+        f.value::string as t    -- token value
     from base as b,
          lateral flatten(input => split(b.offer_csv_raw, ',')) as f
 ),
@@ -63,10 +65,23 @@ clean as (
         asin,
         offer_id,
         snapshot_ts,
-        case when price_dollars_raw < 0 then null else price_dollars_raw end as price,
-        case when price_dollars_raw < 0 then 1    else 0               end as was_sentinel,
+        -- Negative values are sentinels: keep row, null out price, flag it.
+        case
+            when price_dollars_raw < 0 then null
+            else price_dollars_raw
+        end as price,
+        case
+            when price_dollars_raw < 0 then 1
+            else 0
+        end as was_sentinel,
         ingest_ts
     from paired
+    -- BUSINESS FILTER:
+    --  - Keep all negative (sentinel) rows.
+    --  - Keep only *real* prices in (0, 400].
+    --  - Drop any 0 or > 400 prices entirely.
+    where price_dollars_raw < 0
+       or (price_dollars_raw > 0 and price_dollars_raw <= 400)
 ),
 
 dedup as (

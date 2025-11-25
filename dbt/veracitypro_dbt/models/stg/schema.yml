@@ -40,13 +40,19 @@ models:
 
   - name: stg_keepa_offers
     columns:
-      - name: asin
-        tests:
-          - not_null
-      - name: offer_id
+      # Surrogate PK for this table (asin + offer_id + snapshot_ts)
+      - name: stg_offer_id
+        description: "Surrogate key for one offer snapshot"
         tests:
           - not_null
           - unique
+
+      # Raw Keepa offerId – NOT unique over time
+      - name: offer_id
+        description: "Keepa offerId; can repeat across snapshots and over time"
+
+      - name: asin
+        description: "ASIN for the offer"
 
   - name: stg_keepa_offer_price
     columns:
