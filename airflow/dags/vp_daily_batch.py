@@ -115,33 +115,34 @@ def vp_daily_batch():
 
     # ===== SNOWFLAKE: COPY INTO RAW =====
     snowflake_copy = SnowflakeOperator(
-        task_id="snowflake_copy_into_raw",
-        snowflake_conn_id="vp_snowflake",
-        sql="""
-            -- Use the AIRFLOW_ROLE or DBT_ROLE with appropriate permissions
-            USE ROLE DBT_ROLE;
-            USE WAREHOUSE WH_INGEST;
-            USE DATABASE VP_DWH;
-            USE SCHEMA RAW;
+    task_id="snowflake_copy_into_raw",
+    snowflake_conn_id="vp_snowflake",
+    sql="""
+        -- Use the AIRFLOW_ROLE or DBT_ROLE with appropriate permissions
+        USE ROLE DBT_ROLE;
+        USE WAREHOUSE WH_INGEST;
+        USE DATABASE VP_DWH;
+        USE SCHEMA RAW;
 
-            -- COPY data from S3 into KEEPA_RAW table
-            COPY INTO KEEPA_RAW (payload, ingest_dt)
-            FROM (
-                SELECT
-                    $1 as payload,
-                    CURRENT_DATE() as ingest_dt
-                FROM @STAGE_KEEPA
-            )
-            PATTERN='.*\\.jsonl\\.gz'
-            ON_ERROR = 'CONTINUE';
+        -- COPY data from S3 stage into RAW.KEEPA_RAW
+        COPY INTO KEEPA_RAW (payload, ingest_dt)
+        FROM (
+            SELECT
+                $1              AS payload,
+                CURRENT_DATE()  AS ingest_dt
+            FROM @STAGE_KEEPA
+        )
+        PATTERN = '(?i).*\\.jsonl\\.gz'  -- case-insensitive, matches *.jsonl.gz
+        ON_ERROR = 'CONTINUE';
 
-            -- Return row count for logging
-            SELECT 'Loaded rows: ' || COUNT(*) as status
-            FROM KEEPA_RAW
-            WHERE ingest_dt = CURRENT_DATE();
-        """,
-        autocommit=True,
-    )
+        -- Return row count for logging
+        SELECT 'Loaded rows: ' || COUNT(*) AS status
+        FROM KEEPA_RAW
+        WHERE ingest_dt = CURRENT_DATE();
+    """,
+    autocommit=True,
+)
+
 
     # ===== DBT: BUILD MODELS VIA COSMOS =====
     # Simplified configuration to avoid parse-time validation issues
