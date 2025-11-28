@@ -56,10 +56,8 @@ final as (
     product_v:reviewCountHistory                   as review_count_history_v,
 
     -- SALES STATS (adjust JSON paths if needed)
-    product_v:stats.soldLast30Days::number         as sold_last_30d,
-    product_v:stats.soldLast90Days::number         as sold_last_90d,
-    product_v:stats.salesRankDrops30Days::number   as rank_drops_30d,
-    product_v:stats.salesRankMedian30Days::number  as rank_median_30d,
+    product_v:monthlySold::number        as monthly_sold,
+    product_v:monthlySoldHistory         as monthly_sold_history_v,
 
     -- lineage
     filename,
