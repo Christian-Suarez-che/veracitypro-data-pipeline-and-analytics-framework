@@ -1,8 +1,9 @@
 -- models/stg/stg_keepa_reviews.sql
-
 {{ config(
-    materialized = 'incremental',
-    unique_key   = 'pk'
+    materialized='incremental',
+    unique_key='pk',
+    incremental_strategy='merge',
+    tags=['keepa','reviews']
 ) }}
 
 with base as (
@@ -10,14 +11,20 @@ with base as (
         asin,
         csv_v,
         ingest_ts
-    from {{ ref('_stg_keepa_base') }}
+    from VP_DWH.STG._stg_keepa_base
+    {% if is_incremental() %}
+      where ingest_ts > (
+        select coalesce(max(ingest_ts), '1900-01-01')
+        from {{ this }}
+      )
+    {% endif %}
 ),
 
 -- Rating history (csv index 16): [keepa_min, rating_int, keepa_min, rating_int, ...]
 rating_pairs as (
     select
         b.asin,
-        floor(f.index / 2)::number as pair_idx,  -- each pair_idx is one (minute, rating) point
+        floor(f.index / 2)::number as pair_idx,  -- each pair corresponds to (minute, rating)
         max(iff(mod(f.index, 2) = 0, f.value::number, null)) as keepa_min_rating,
         max(iff(mod(f.index, 2) = 1, f.value::number, null)) as raw_rating,
         b.ingest_ts
@@ -45,7 +52,7 @@ count_pairs as (
         floor(f.index / 2)
 ),
 
--- Join rating + count on asin + keepa_min (Keepa time minutes)
+-- Join rating + count on asin + Keepa minute
 joined as (
     select
         coalesce(r.asin, c.asin)                         as asin,
@@ -57,21 +64,34 @@ joined as (
     full outer join count_pairs c
         on  r.asin             = c.asin
         and r.keepa_min_rating = c.keepa_min_count
+),
+
+final as (
+    select
+        md5(
+          coalesce(asin,'NULL') || '|' ||
+          to_varchar(to_timestamp_ntz((keepa_min + 21564000) * 60))
+        ) as pk,
+        asin,
+        to_timestamp_ntz((keepa_min + 21564000) * 60)    as snapshot_ts,
+        -- Keepa rating: 0–50 (e.g. 45 = 4.5 stars). Negative => sentinel (no value).
+        iff(raw_rating < 0, null, raw_rating / 10.0)    as rating,
+        -- Keepa review count: negative => sentinel (no value).
+        iff(raw_count  < 0, null, raw_count)            as review_count,
+        ingest_ts,
+        row_number() over (
+          partition by asin, to_timestamp_ntz((keepa_min + 21564000) * 60)
+          order by ingest_ts desc
+        ) as rn
+    from joined
 )
 
 select
-    md5(asin || '|' || to_varchar(to_timestamp_ntz((keepa_min + 21564000) * 60))) as pk,
+    pk,
     asin,
-    to_timestamp_ntz((keepa_min + 21564000) * 60)                                  as snapshot_ts,
-    -- Keepa rating: 0–50 (e.g. 45 = 4.5 stars). Negative => sentinel (no value).
-    iff(raw_rating < 0, null, raw_rating / 10.0)                                   as rating,
-    -- Keepa review count: negative => sentinel (no value).
-    iff(raw_count  < 0, null, raw_count)                                           as review_count,
+    snapshot_ts,
+    rating,
+    review_count,
     ingest_ts
-from joined
-{% if is_incremental() %}
-where snapshot_ts::date >= (
-    select coalesce(max(snapshot_ts::date), '1900-01-01')
-    from {{ this }}
-)
-{% endif %}
+from final
+where rn = 1

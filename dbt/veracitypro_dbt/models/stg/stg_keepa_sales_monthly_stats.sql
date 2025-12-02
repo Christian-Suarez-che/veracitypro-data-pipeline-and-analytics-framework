@@ -1,9 +1,9 @@
 -- models/stg/stg_keepa_sales_monthly_stats.sql
 {{ config(
-    materialized = 'incremental',
-    unique_key   = 'stg_sales_stats_id',
-    incremental_strategy = 'merge',
-    tags = ['keepa', 'sales', 'stats']
+    materialized='incremental',
+    unique_key='stg_sales_stats_id',
+    incremental_strategy='merge',
+    tags=['keepa','sales_stats']
 ) }}
 
 with base as (
@@ -12,8 +12,14 @@ with base as (
         monthly_sold,
         monthly_sold_history_v,
         ingest_ts
-    from {{ ref('_stg_keepa_base') }}
+    from VP_DWH.STG._stg_keepa_base
     where asin is not null
+    {% if is_incremental() %}
+      and ingest_ts > (
+        select coalesce(max(ingest_ts), '1900-01-01')
+        from {{ this }}
+      )
+    {% endif %}
 ),
 
 exploded as (
@@ -23,7 +29,7 @@ exploded as (
         seq.index::number  as idx,
         seq.value::number  as val
     from base,
-    lateral flatten(input => monthly_sold_history_v) as seq
+         lateral flatten(input => monthly_sold_history_v) as seq
 ),
 
 paired as (
@@ -56,16 +62,23 @@ normalized as (
 
 dedup as (
     select
-        md5(asin || '|' || to_varchar(sales_month)) as stg_sales_stats_id,
+        md5(coalesce(asin,'NULL') || '|' || to_varchar(sales_month)) as stg_sales_stats_id,
         asin,
         sales_month,
         est_units_sold,
-        ingest_ts
+        ingest_ts,
+        row_number() over (
+          partition by asin, sales_month
+          order by ingest_ts desc
+        ) as rn
     from normalized
 )
 
-select *
+select
+    stg_sales_stats_id,
+    asin,
+    sales_month,
+    est_units_sold,
+    ingest_ts
 from dedup
-{% if is_incremental() %}
-where ingest_ts > (select coalesce(max(ingest_ts),'1900-01-01') from {{ this }})
-{% endif %}
+where rn = 1
