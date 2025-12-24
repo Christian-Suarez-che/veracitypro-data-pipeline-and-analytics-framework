@@ -24,16 +24,20 @@ from cosmos.profiles import SnowflakeUserPasswordProfileMapping
 
 # DAG Configuration
 DAG_ID = "vp_daily_batch"
-AIRBYTE_CONNECTION_ID = os.getenv(
-    "AIRBYTE_KEEPA_CONNECTION_ID",
-    "Set it in Astro → Deployments → Environment Variables.",
-)
+#gets env var for airbyte to sync data from keepaAPI into S3 bucket
+AIRBYTE_CONNECTION_ID = os.getenv("AIRBYTE_KEEPA_CONNECTION_ID")
+
+if not AIRBYTE_CONNECTION_ID:
+    raise ValueError(
+        "Missing required env var AIRBYTE_KEEPA_CONNECTION_ID. "
+        "Set it in Astro → Deployments → Environment Variables."
+    )
+
 S3_BUCKET = "vp-raw-dev-us-east-2"
 S3_PREFIX = "env=dev/source=keepa/stream=product_raw/"
 # Use relative path from AIRFLOW_HOME (/usr/local/airflow in Astro)
 # This resolves to /usr/local/airflow/dbt/veracitypro_dbt in deployed environment
-DBT_PROJECT_PATH = Path(__file__).parent.parent / "dbt" / "veracitypro_dbt"
-
+DBT_PROJECT_PATH = Path(__file__).resolve().parents[2] / "dbt" / "veracitypro_dbt"
 
 default_args = {
     "owner": "data_engineering",
