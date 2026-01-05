@@ -145,6 +145,7 @@ def vp_daily_batch():
         WHERE ingest_dt = CURRENT_DATE();
     """,
     autocommit=True,
+    do_xcom_push=True,
 )
 
 
